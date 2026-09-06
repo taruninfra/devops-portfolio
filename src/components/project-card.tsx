@@ -3,10 +3,11 @@
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import Markdown from "react-markdown";
+import { motion } from "framer-motion";
 
 function ProjectImage({ src, alt }: { src: string; alt: string }) {
   const [imageError, setImageError] = useState(false);
@@ -26,15 +27,21 @@ interface Props {
 }
 
 export function ProjectCard({ title, href, description, dates, tags, link, image, video, links, className }: Props) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
-    <div className={cn("group relative flex flex-col h-full bg-card/40 backdrop-blur-xl border border-border/50 rounded-xl overflow-hidden transition-all duration-500 ease-out hover:shadow-[0_0_30px_-15px_rgba(59,130,246,0.2)] hover:-translate-y-1.5 hover:border-primary/40 cursor-none z-10", className)}>
+    <motion.div 
+      layout
+      onClick={() => setIsExpanded(!isExpanded)}
+      className={cn("group relative flex flex-col h-full bg-card/40 backdrop-blur-xl border border-border/50 rounded-xl overflow-hidden transition-colors duration-500 ease-out hover:shadow-[0_0_30px_-15px_rgba(59,130,246,0.2)] hover:border-primary/40 cursor-none z-10", className)}
+    >
       
       {/* Dynamic Inner Glow Effect on Hover */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-0 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
 
       {/* Compact Image Header */}
-      <div className="relative shrink-0 overflow-hidden border-b border-border/30 z-10">
-        <Link href={href || "#"} target="_blank" rel="noopener noreferrer" className="block cursor-none">
+      <motion.div layout="position" className="relative shrink-0 overflow-hidden border-b border-border/30 z-10">
+        <Link href={href || "#"} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="block cursor-none">
           {video ? (
             <video src={video} autoPlay loop muted playsInline className="w-full h-36 object-cover transition-transform duration-700 group-hover:scale-110" />
           ) : image ? (
@@ -54,35 +61,45 @@ export function ProjectCard({ title, href, description, dates, tags, link, image
             ))}
           </div>
         )}
-      </div>
+      </motion.div>
       
       {/* Tightly Packed Content */}
       <div className="p-4 md:p-5 flex flex-col gap-3 flex-1 z-10">
-        <div className="flex items-start justify-between gap-2">
+        <motion.div layout="position" className="flex items-start justify-between gap-2">
           <div className="flex flex-col gap-1">
             <h3 className="font-bold text-base md:text-lg tracking-tight text-foreground group-hover:text-primary transition-colors duration-300 leading-tight">{title}</h3>
             <time className="text-[10px] md:text-xs text-muted-foreground font-mono">{dates}</time>
           </div>
-          <Link href={href || "#"} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors cursor-none bg-secondary/50 p-1.5 rounded-full group-hover:bg-primary/10 shrink-0" aria-label={`Open ${title}`}>
+          <Link href={href || "#"} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-primary transition-colors cursor-none bg-secondary/50 p-1.5 rounded-full group-hover:bg-primary/10 shrink-0" aria-label={`Open ${title}`}>
             <ArrowUpRight className="h-3.5 w-3.5 transform transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden />
           </Link>
-        </div>
+        </motion.div>
         
-        {/* Strictly Clamped Description */}
-        <div className="text-xs md:text-sm flex-1 prose max-w-full text-pretty font-sans leading-relaxed text-muted-foreground dark:prose-invert line-clamp-3">
+        {/* Expandable Description */}
+        <motion.div layout="position" className={cn("text-xs md:text-sm flex-1 prose max-w-full text-pretty font-sans leading-relaxed text-muted-foreground dark:prose-invert transition-all duration-300", isExpanded ? "" : "line-clamp-3")}>
           <Markdown>{description}</Markdown>
-        </div>
+        </motion.div>
+
+        {/* Read More / Show Less Toggle Indicator */}
+        <motion.div layout="position" className="flex items-center gap-1 text-[11px] font-medium text-primary/70 group-hover:text-primary transition-colors mt-0.5">
+          {isExpanded ? (
+            <><ChevronUp className="w-3 h-3" /> Show less</>
+          ) : (
+            <><ChevronDown className="w-3 h-3" /> Read more</>
+          )}
+        </motion.div>
         
+        {/* Tags */}
         {tags && tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-auto pt-4">
+          <motion.div layout="position" className="flex flex-wrap gap-1.5 mt-auto pt-2">
             {tags.map((tag) => (
               <Badge key={tag} className="text-[9px] md:text-[10px] font-medium bg-secondary/60 text-secondary-foreground hover:bg-secondary border-none transition-colors px-2 py-0.5" variant="secondary">
                 {tag}
               </Badge>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
