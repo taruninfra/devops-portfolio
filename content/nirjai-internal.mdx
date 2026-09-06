@@ -1,0 +1,38 @@
+---
+title: "Zero-Trust Hardening & SIEM: Remediating 26 Audit Findings Across 37 Endpoints"
+publishedAt: "2025-12-18"
+summary: "How we implemented default-deny WireGuard tunnels, Wazuh SIEM anomaly detection, and Ansible-driven GeoIP filtering to eliminate internal infrastructure attack vectors."
+---
+Securing client-facing production workloads often takes priority in fast-moving engineering teams, leaving internal corporate networks, developer workstations, and staging servers vulnerable to shadow access and credential sprawl. 
+
+Following a comprehensive internal security audit, our infrastructure flagged 26 distinct security findings across 37 heterogenous endpoints and servers. The issues spanned exposed SSH management ports, unrestricted east-west traffic between internal staging hosts, unmonitored privilege escalation attempts, and missing log correlation.
+
+Rather than applying piecemeal patches, we undertook a ground-up Zero-Trust architectural overhaul across our entire internal network topology.
+
+### The Zero-Trust Network & Threat Telemetry Architecture
+
+The solution decoupled infrastructure access from physical office perimeters, moving to an identity-validated, default-deny network model enforced by **WireGuard**, backed by real-time intrusion monitoring via **Wazuh SIEM**, and automated response rules managed through **Ansible**.
+
+![Architecture Diagram](/nirjaiinternal.png)
+
+### Key Architectural Pillars
+
+#### 1. Default-Deny WireGuard Mesh
+Direct internet access to SSH (port 22) was shut down completely on all 37 target machines. We codified a central WireGuard gateway using split-tunneling. Each endpoint and engineer workstation was provisioned with isolated cryptographic keypairs and assigned immutable /32 IP addresses. Only traffic authenticated over the wg0 interface was permitted to speak to server management daemons.  
+
+#### 2. Wazuh SIEM for Real-Time Threat Hunting
+To provide deep observability, we deployed lightweight Wazuh agents across all 37 Linux and Windows nodes. Wazuh continuously streams security telemetry to a centralized Wazuh Manager and Indexer cluster:  File Integrity Monitoring (FIM): Tracks unauthorized modifications to sensitive configuration files (/etc/passwd, /etc/sudoers, /etc/ssh/sshd_config).Log Analysis & GeoIP Telemetry: Parses system authentication logs to flag abnormal login times, brute-force anomalies, and unexpected connection origins.
+
+### 3. Automated Anomaly Blocking with Ansible & UFW
+Manual review of security events introduces latency that attackers can exploit. When Wazuh flags suspicious ingress attempts or brute-force patterns, its active-response daemon triggers an Ansible automation playbook.  
+
+Ansible dynamically queries MaxMind GeoIP databases, updates local UFW (Uncomplicated Firewall) rule chains via idempotent Bash scripts, and null-routes the attacking CIDR range across the entire fleet in under two seconds
+
+### The Measurable Impact
+By enforcing cryptographic access control, SIEM-driven threat monitoring, and automated firewall response, we achieved:
+
+#### 1. 100% Audit Resolution: Successfully resolved all 26 security audit findings across the 37 target endpoints and servers.
+
+#### 2. Zero Public Management Exposure: Completely removed exposed SSH and remote admin ports from the public internet.
+
+#### 3. Proactive Defense: Automated detection and blocking of credential stuffing and anomalous GeoIP login attempts with zero human intervention.

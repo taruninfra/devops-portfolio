@@ -1,0 +1,23 @@
+---
+title: "Zero-Public-IP Architecture: Securing Azure Landing Zones with Bicep"
+publishedAt: "2026-04-12"
+summary: "An architectural deep-dive into eliminating standing credentials and reachable public assets using Azure Bicep and OIDC GitOps."
+---
+
+In strictly regulated environments like healthcare and fintech, traditional perimeter-based network security is no longer sufficient. Relying on a strong firewall at the edge while keeping the internal network "soft" leaves infrastructure highly vulnerable to lateral movement and data exfiltration. 
+
+For a recent enterprise hybrid cloud migration, the architectural mandate was clear: the Azure landing zone must contain absolutely zero reachable public assets. No public IPs, no open RDP/SSH management ports, and no standing administrative credentials.
+
+### The Hub-and-Spoke Private Architecture
+
+To achieve this, I codified the entire infrastructure using **Azure Bicep**, enforcing a strict Hub-and-Spoke topology. The "Hub" acts as the central inspection and routing point, connected to the on-premises datacenter via an ExpressRoute or VPN Gateway. The "Spoke" Virtual Networks (VNets) host the actual workloads but have zero direct outbound internet access.
+
+By strictly enforcing the use of **Azure Private Endpoints**, Platform-as-a-Service (PaaS) resources like Azure SQL, CosmosDB, and Azure Key Vault are injected directly into the private VNet. Traffic never traverses the public internet backbone.
+
+![Architecture Diagram](/azure-landing-zone.png)
+
+### Eliminating Standing Credentials via OIDC
+
+Deploying into a fully private environment traditionally requires jump servers (bastion hosts) or heavy corporate VPNs, both of which introduce administrative overhead and credential rotation risks. To solve this, we implemented OpenID Connect (OIDC) workload identity federation.
+
+#### Rather than storing highly privileged Azure Client Secrets in our CI/CD platform, our GitHub Actions pipelines request a short-lived, ephemeral token from Microsoft Entra ID (formerly Azure AD) for the exact duration of the pipeline run. This GitOps workflow allows us to promote SHA-tagged container images to AKS seamlessly, while Microsoft Defender continuously validates that our attack surface remains at absolute zero.

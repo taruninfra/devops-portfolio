@@ -1,193 +1,172 @@
-import { allPosts } from "content-collections";
-import { formatDate } from "@/lib/utils";
-import { DATA } from "@/data/resume";
-import type { Metadata } from "next";
+import { ScrollReveal } from "@/components/scroll-reveal";
+import fs from "fs";
+import path from "path";
+import Markdown from "react-markdown";
 import { notFound } from "next/navigation";
-import { MDXContent } from "@content-collections/mdx/react";
-import { mdxComponents } from "@/mdx-components";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 
-function getSortedPosts() {
-  return [...allPosts].sort((a, b) => {
-    if (new Date(a.publishedAt) > new Date(b.publishedAt)) {
-      return -1;
+type Metadata = {
+  title: string;
+  publishedAt: string;
+  summary: string;
+};
+
+function parseFrontmatter(fileContent: string) {
+  const frontmatterRegex = /---\s*([\s\S]*?)\s*---/;
+  const match = frontmatterRegex.exec(fileContent);
+  const frontMatterBlock = match ? match[1] : "";
+  const content = fileContent.replace(frontmatterRegex, "").trim();
+  const frontMatterLines = frontMatterBlock.trim().split("\n");
+  const metadata: Partial<Metadata> = {};
+
+  frontMatterLines.forEach((line) => {
+    const [key, ...valueArr] = line.split(":");
+    let value = valueArr.join(":").trim();
+    value = value.replace(/^['"](.*)['"]$/, "$1");
+    if (key.trim()) {
+      metadata[key.trim() as keyof Metadata] = value;
     }
-    return 1;
   });
+
+  return { metadata: metadata as Metadata, content };
+}
+
+function getPost(slug: string) {
+  const mdxPath = path.join(process.cwd(), "content", `${slug}.mdx`);
+  const mdPath = path.join(process.cwd(), "content", `${slug}.md`);
+  
+  let filePath = "";
+  if (fs.existsSync(mdxPath)) filePath = mdxPath;
+  else if (fs.existsSync(mdPath)) filePath = mdPath;
+  else return null;
+
+  const rawContent = fs.readFileSync(filePath, "utf-8");
+  return parseFrontmatter(rawContent);
+}
+
+// Function to fetch all posts for the Next/Prev navigation
+function getAllPosts() {
+  const dir = path.join(process.cwd(), "content");
+  if (!fs.existsSync(dir)) return [];
+  const files = fs.readdirSync(dir).filter((file) => path.extname(file) === ".mdx" || path.extname(file) === ".md");
+  
+  return files.map((file) => {
+    const rawContent = fs.readFileSync(path.join(dir, file), "utf-8");
+    const { metadata } = parseFrontmatter(rawContent);
+    return { metadata, slug: path.basename(file, path.extname(file)) };
+  }).sort((a, b) => new Date(b.metadata.publishedAt).getTime() - new Date(a.metadata.publishedAt).getTime());
 }
 
 export async function generateStaticParams() {
-  return allPosts.map((post) => ({
-    slug: post._meta.path.replace(/\.mdx$/, ""),
+  const dir = path.join(process.cwd(), "content");
+  if (!fs.existsSync(dir)) return [];
+  const files = fs.readdirSync(dir);
+  return files.map((file) => ({
+    slug: file.replace(/\.mdx?$/, ""),
   }));
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{
-    slug: string;
-  }>;
-}): Promise<Metadata | undefined> {
-  const { slug } = await params;
-  const post = allPosts.find((p) => p._meta.path.replace(/\.mdx$/, "") === slug);
-
-  if (!post) {
-    return undefined;
-  }
-
-  let {
-    title,
-    publishedAt: publishedTime,
-    summary: description,
-    image,
-  } = post;
-
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      type: "article",
-      publishedTime,
-      url: `${DATA.url}/blog/${slug}`,
-      ...(image && {
-        images: [
-          {
-            url: `${DATA.url}${image}`,
-          },
-        ],
-      }),
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      ...(image && {
-        images: [`${DATA.url}${image}`],
-      }),
-    },
-  };
-}
-
-export default async function Blog({
-  params,
-}: {
-  params: Promise<{
-    slug: string;
-  }>;
-}) {
-  const { slug } = await params;
-  const sortedPosts = getSortedPosts();
-  const currentIndex = sortedPosts.findIndex(
-    (p) => p._meta.path.replace(/\.mdx$/, "") === slug
-  );
-  const post = sortedPosts[currentIndex];
+export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> | { slug: string } }) {
+  const resolvedParams = await params;
+  const slug = resolvedParams.slug;
+  
+  const post = getPost(slug);
 
   if (!post) {
     notFound();
   }
 
-  const previousPost = currentIndex > 0 ? sortedPosts[currentIndex - 1] : null;
-  const nextPost = currentIndex < sortedPosts.length - 1 ? sortedPosts[currentIndex + 1] : null;
-
-  const getSlug = (post: (typeof sortedPosts)[0]) =>
-    post._meta.path.replace(/\.mdx$/, "");
-
-  const jsonLdContent = JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    headline: post.title,
-    datePublished: post.publishedAt,
-    dateModified: post.publishedAt,
-    description: post.summary,
-    image: post.image
-      ? `${DATA.url}${post.image}`
-      : `${DATA.url}/blog/${slug}/opengraph-image`,
-    url: `${DATA.url}/blog/${slug}`,
-    author: {
-      "@type": "Person",
-      name: DATA.name,
-    },
-  }).replace(/</g, "\\u003c");
+  // Get all posts and find adjacent ones for navigation
+  const allPosts = getAllPosts();
+  const currentIndex = allPosts.findIndex((p) => p.slug === slug);
+  
+  // Sorted newest to oldest, so nextPost (newer) is index - 1, prevPost (older) is index + 1
+  const nextPost = currentIndex > 0 ? allPosts[currentIndex - 1] : null;
+  const prevPost = currentIndex < allPosts.length - 1 ? allPosts[currentIndex + 1] : null;
 
   return (
-    <section id="blog">
-      <script
-        type="application/ld+json"
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{
-          __html: jsonLdContent,
-        }}
-      />
-      <div className="flex justify-start gap-4 items-center">
-        <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors border border-border rounded-lg px-2 py-1 inline-flex items-center gap-1 mb-6 group" aria-label="Back to Blog">
-          <ChevronLeft className="size-3 group-hover:-translate-x-px transition-transform" />
+    <article className="flex flex-col gap-8 pb-24 w-full">
+      <ScrollReveal delay={0.1}>
+        <Link 
+          href="/blog" 
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors cursor-none mb-4 bg-card/40 px-4 py-2 rounded-full border border-border/50 hover:bg-card/80"
+        >
+          <ArrowLeft className="w-4 h-4" />
           Back to Blog
         </Link>
-      </div>
-      <div className="flex flex-col gap-4">
-        <h1 className="title font-semibold text-3xl md:text-4xl tracking-tighter leading-tight">
-          {post.title}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {formatDate(post.publishedAt)}
-        </p>
-      </div>
-      <div className="my-6 flex w-full items-center">
-        <div
-          className="flex-1 h-px bg-border"
-          style={{
-            maskImage:
-              "linear-gradient(90deg, transparent, black 8%, black 92%, transparent)",
-            WebkitMaskImage:
-              "linear-gradient(90deg, transparent, black 8%, black 92%, transparent)",
-          }}
-        />
-      </div>
-      <article className="prose max-w-full text-pretty font-sans leading-relaxed text-muted-foreground dark:prose-invert">
-        <MDXContent code={post.mdx} components={mdxComponents} />
-      </article>
+      </ScrollReveal>
 
-      <nav className="mt-12 pt-8 max-w-2xl">
-        <div className="flex flex-col sm:flex-row justify-between gap-4">
-          {previousPost ? (
-            <Link
-              href={`/blog/${getSlug(previousPost)}`}
-              className="group flex-1 flex flex-col gap-1 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
-            >
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <ChevronLeft className="size-3" />
-                Previous
-              </span>
-              <span className="text-sm font-medium group-hover:text-foreground transition-colors whitespace-normal wrap-break-word">
-                {previousPost.title}
-              </span>
-            </Link>
-          ) : (
-            <div className="hidden sm:block flex-1" />
-          )}
+      <div className="space-y-4">
+        <ScrollReveal delay={0.2} yOffset={20}>
+          <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground leading-tight">
+            {post.metadata.title}
+          </h1>
+        </ScrollReveal>
+        
+        <ScrollReveal delay={0.3} yOffset={20}>
+          <div className="flex items-center gap-4 border-b border-border/50 pb-8 mt-4">
+            <p className="text-sm font-mono text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full border border-border/50">
+              {new Date(post.metadata.publishedAt).toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+              })}
+            </p>
+          </div>
+        </ScrollReveal>
+      </div>
 
-          {nextPost ? (
-            <Link
-              href={`/blog/${getSlug(nextPost)}`}
-              className="group flex-1 flex flex-col gap-1 p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors text-right"
-            >
-              <span className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                Next
-                <ChevronRight className="size-3" />
-              </span>
-              <span className="text-sm font-medium group-hover:text-foreground transition-colors whitespace-normal wrap-break-word">
-                {nextPost.title}
-              </span>
-            </Link>
-          ) : (
-            <div className="hidden sm:block flex-1" />
-          )}
+      <ScrollReveal delay={0.4} yOffset={30}>
+        <div className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-primary prose-a:cursor-none hover:prose-a:text-primary/80 prose-img:rounded-2xl prose-img:border prose-img:border-border/50 prose-img:shadow-lg prose-pre:bg-card/50 prose-pre:border prose-pre:border-border/50 prose-pre:backdrop-blur-md">
+          <Markdown>
+            {post.content}
+          </Markdown>
         </div>
-      </nav>
-    </section>
+      </ScrollReveal>
+
+      {/* MODERN NEXT / PREVIOUS NAVIGATION */}
+      <ScrollReveal delay={0.2} yOffset={30}>
+        <div className="flex flex-col sm:flex-row items-stretch justify-between gap-4 border-t border-border/50 pt-10 mt-10">
+          
+          {/* Older Post (Previous) */}
+          {prevPost ? (
+            <Link 
+              href={`/blog/${prevPost.slug}`} 
+              className="group flex flex-col gap-2 text-left w-full sm:w-1/2 p-6 rounded-2xl border border-border/50 bg-card/40 backdrop-blur-sm hover:bg-card hover:border-primary/50 transition-all duration-300 cursor-none"
+            >
+              <span className="text-xs font-mono text-muted-foreground flex items-center gap-1 group-hover:text-foreground transition-colors">
+                <ChevronLeft className="w-4 h-4" /> 
+                Older Post
+              </span>
+              <span className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                {prevPost.metadata.title}
+              </span>
+            </Link>
+          ) : (
+            <div className="w-full sm:w-1/2"></div>
+          )}
+
+          {/* Newer Post (Next) */}
+          {nextPost ? (
+            <Link 
+              href={`/blog/${nextPost.slug}`} 
+              className="group flex flex-col gap-2 text-right items-end w-full sm:w-1/2 p-6 rounded-2xl border border-border/50 bg-card/40 backdrop-blur-sm hover:bg-card hover:border-primary/50 transition-all duration-300 cursor-none"
+            >
+              <span className="text-xs font-mono text-muted-foreground flex items-center gap-1 group-hover:text-foreground transition-colors">
+                Newer Post 
+                <ChevronRight className="w-4 h-4" />
+              </span>
+              <span className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                {nextPost.metadata.title}
+              </span>
+            </Link>
+          ) : (
+            <div className="w-full sm:w-1/2"></div>
+          )}
+
+        </div>
+      </ScrollReveal>
+    </article>
   );
 }

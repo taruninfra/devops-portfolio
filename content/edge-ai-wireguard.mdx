@@ -1,0 +1,27 @@
+---
+title: "Zero-Trust at the Edge: Securing AI Telemetry over PtMP Networks"
+publishedAt: "2026-05-15"
+summary: "Deploying containerized YOLOv8 inference engines securely across wireless networks using WireGuard split-tunneling."
+---
+
+Deploying AI models within the secure confines of a cloud VPC is a solved problem. Deploying those same models on ruggedized edge-compute hardware, analyzing 21 live telemetry feeds, and transmitting results over physically vulnerable Point-to-Multipoint (PtMP) wireless networks is a significantly more complex engineering challenge.
+
+For a recent AI surveillance initiative, we provisioned NVIDIA RTX 4000 servers directly at the network edge. The primary concern was securing the RTSP/RTMP video feeds and PostgreSQL telemetry data from packet sniffing or interception across the wireless links.
+
+### The WireGuard Mesh Architecture
+
+Traditional IPSec or OpenVPN protocols carry too much cryptographic payload overhead, which severely impacts latency on constrained wireless links. We architected a **WireGuard** mesh network. Operating directly in the Linux kernel space, WireGuard offers state-of-the-art cryptography (ChaCha20, Poly1305) with near-zero latency penalty.
+
+![Architecture Diagram](/Zero-Trust-ai.png)
+
+### Containerization & Egress Control
+
+To ensure deployment consistency, the entire edge software stack was codified using Docker Compose. However, running a VPN isn't enough; we had to enforce a Zero-Trust perimeter on the hardware itself:
+
+1. Split-Tunneling: Only specific, sensitive telemetry data destined for the central cloud was routed through the wg0 interface. Local device management stayed strictly local.
+
+2. Strict Egress via iptables: We configured the host firewall to drop all outbound packets that did not originate from the WireGuard interface or the authorized Docker bridge network.
+
+3. DNS Sinkholing: By integrating Pi-hole as the primary DNS resolver at the edge, we blocked unauthorized internal queries, effectively neutralizing any malicious payloads attempting to "phone home."
+
+#### This architecture has sustained 99.9% uptime over 90+ days without a single packet interception or security breach.

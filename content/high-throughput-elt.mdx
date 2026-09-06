@@ -1,0 +1,23 @@
+---
+title: "Architecting a 24M Record ELT Data Platform on PostgreSQL"
+publishedAt: "2026-06-18"
+summary: "Designing a resilient, memory-capped Docker Compose swarm for headless browser data acquisition."
+---
+
+Extract, Load, Transform (ELT) architectures flip traditional data engineering on its head. Instead of transforming data on expensive middleware before saving it, modern systems load the raw data directly into the target database and utilize its highly optimized compute engine to perform the transformations. 
+
+For a recent financial data platform, we needed to scale our ingestion pipelines to handle 24.7 million time-series records across multiple unstructured web sources.
+
+### Data Acquisition via Headless Swarms
+
+Many of the target data sources lacked clean, structured REST APIs, requiring aggressive DOM parsing and web scraping. We orchestrated this using headless-browser automation via **Selenium and Chromium**. 
+
+Because headless browsers are notorious for memory leaks and zombie processes, running them on bare metal quickly led to host-level Out of Memory (OOM) crashes. The solution was containerizing the acquisition layer using a multi-profile **Docker Compose** setup, applying strict `deploy.resources.limits.memory` cgroups to prevent host starvation. If a scraper spiked in memory, the Docker daemon cleanly killed and restarted only that isolated container.
+
+![Architecture Diagram](/ELT-Data.png)
+
+### The PostgreSQL Warehouse Architecture
+
+The raw, messy data was dumped directly into the "Raw Zone" of a 3-tier PostgreSQL warehouse.
+
+#### Data normalization was handled entirely in-database via delta-load transformers and over 19 strict, idempotent SQL migrations. This idempotent design ensured that if a scraper container crashed or timed out mid-execution, re-running the pipeline would cleanly upsert data without resulting in duplicates. This resilient architecture ultimately achieved a 99.9% execution success rate.

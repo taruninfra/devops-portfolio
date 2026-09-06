@@ -1,0 +1,27 @@
+---
+title: "Migrating to Azure ASE v3: Dropping p99 Latency to 120ms"
+publishedAt: "2025-12-30"
+summary: "Securing healthcare microservices behind Azure Front Door while migrating to a single-tenant App Service Environment."
+---
+
+In the healthcare sector, multi-tenant cloud environments often introduce unpredictable performance degradation due to the "noisy neighbor" effect. We were experiencing unacceptable p99 API latency spikes (sometimes reaching 850ms) in our .NET and SQL Server ecosystem. 
+
+By analyzing network telemetry and execution profiles via Kusto Query Language (KQL) in Azure Application Insights, we identified underlying compute and SNAT port contention as the primary bottlenecks. The architectural solution was a massive migration to a single-tenant **Azure App Service Environment (ASE v3)**.
+
+### The Security & Routing Perimeter
+
+ASE v3 completely changes the networking model of Azure App Services by injecting the compute environment directly into a private Virtual Network (VNet). Because the environment was now entirely private, we had to rebuild the global ingress architecture from scratch.
+
+![Architecture Diagram](/ASEv3.png)
+
+### Cryptographic Hardening (VAPT Closure)
+
+Beyond solving the performance issues, the architecture had to pass exhaustive, third-party security audits. We successfully closed 100% of Vulnerability Assessment and Penetration Testing (VAPT) findings on the first re-test by implementing stringent cryptographic controls:
+
+1. UCKY13 Mitigation: We disabled CBC-mode ciphersuites at the Front Door level to prevent timing-based padding oracle attacks, strictly enforcing TLS 1.3 across the entire perimeter.
+
+2. HSTS Enforcement: HTTP Strict Transport Security was enabled globally to prevent malicious protocol downgrade attacks.
+
+3. Secret Centralization: All database connection strings and Azure Data Factory SSIS integration tokens were stripped from application code and web configs. They were moved to Azure Key Vault, accessed securely by the microservices via system-assigned Managed Identities.
+
+#### This overhaul not only secured the platform beyond compliance standards but completely eliminated the noisy neighbor effect, reducing our p99 API latency by 86% to a rock-solid 120ms.

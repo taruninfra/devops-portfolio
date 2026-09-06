@@ -1,0 +1,25 @@
+---
+title: "Kernel Tuning & CI/CD: Shrinking Release Cycles from 45 to 12 Minutes"
+publishedAt: "2025-10-05"
+summary: "A deep dive into optimizing Jenkins pipelines, implementing SonarQube quality gates, and tuning Linux build agents."
+---
+
+Bloated CI/CD pipelines are the silent killer of engineering productivity. When builds take 45 minutes to execute, developers stop committing frequently, batching their changes into massive, risky pull requests that inevitably lead to merge conflicts and broken builds. 
+
+During an internal release automation initiative, I was tasked with auditing our Jenkins and GitHub Actions infrastructure to identify exactly where the time was being lost across 6 production applications.
+
+### The Build Architecture Overhaul
+
+The optimization required a multi-layered approach, attacking bottlenecks at the code quality layer, the pipeline architecture layer, and the underlying operating system layer.
+
+![Architecture Diagram](/cicd.png)
+
+### Breaking Down the Improvements
+
+1. Shift-Left Security: By integrating SonarQube directly into the PR workflow, we caught bugs before the 45-minute build process even started. If a PR failed the quality gate, the pipeline aborted immediately, saving vast amounts of compute time.
+
+2. Linux Kernel Tuning: We noticed our self-hosted build agents were suffering from network port exhaustion (SNAT) and aggressive memory swapping during parallel Docker builds. By modifying the kernel parameters via /etc/sysctl.conf (lowering swappiness and enabling tcp_tw_reuse), we eliminated I/O wait times.
+
+3. Restic Backups: Pre-deployment database backups via traditional SQL dumps were agonizingly slow. We replaced them with Restic, enabling fast, incremental, and deduplicated encrypted backups directly to object storage.
+
+#### By combining these optimizations, we successfully compressed our release cycles by 73%, bringing deployment times down from 45 minutes to a highly agile 12 minutes.

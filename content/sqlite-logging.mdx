@@ -1,0 +1,25 @@
+---
+title: "Retiring Elasticsearch: Cutting Logging Costs by 80% with SQLite"
+publishedAt: "2026-02-10"
+summary: "An architectural pivot from heavy ELK stacks to SQLite FTS5 for lightweight, high-performance trace correlation."
+---
+
+Elasticsearch is the undisputed industry standard for distributed log aggregation. However, for mid-sized applications processing roughly 5 to 10 GB of logs per day, maintaining a highly available ELK cluster often incurs an unjustified "infrastructure tax"—high JVM heap memory requirements, complex shard balancing, and steep cloud storage costs.
+
+Faced with a bloated observability budget, I made the architectural decision to retire Elasticsearch entirely. In its place, I designed a much leaner, highly performant stack: **SQLite** paired with **FastAPI**.
+
+### The SQLite FTS5 Engine
+
+SQLite is frequently misunderstood as a "toy" database meant only for local testing. In reality, it is the most deployed database engine in the world, running on edge devices and massive servers alike. By enabling the **FTS5 (Full-Text Search)** extension and configuring Write-Ahead Logging (WAL mode), SQLite can handle incredibly high-throughput concurrent reads and writes without locking the database.
+
+![Architecture Diagram](/SQLite.png)
+
+### The Results
+
+1. Zero Network Latency: Because the SQLite database acts as a localized file on the ultra-fast NVMe SSD of the FastAPI server, querying logs involves zero network hops.
+
+2. Trace Correlation: We strictly enforced standardized JSON structures, indexing Trace IDs across all microservices. Developers can follow the life of a request across the stack just as effectively as they did in Kibana.
+
+3. Disaster Recovery: High availability was achieved not through complex clustering, but through simplicity. Backing up the logs became as simple as streaming the database file to object storage (S3/Supabase), easily hitting a 24-hour RPO.
+
+#### This pivot eliminated JVM tuning, removed the need for dedicated master/data nodes, and slashed our logging infrastructure compute spend by exactly 80%.

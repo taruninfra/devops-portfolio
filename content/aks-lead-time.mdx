@@ -1,0 +1,21 @@
+---
+title: "Slashing Commit-to-Production Lead Times by 80% on AKS"
+publishedAt: "2026-04-22"
+summary: "Utilizing Helm, HPA autoscaling, and Azure Pipelines to optimize microservice deployment speed."
+---
+
+In AI-driven algorithmic trading, the velocity of software delivery directly impacts competitive advantage. At TradrLab, the engineering team was battling a highly fragmented deployment process. Moving a mixed-stack microservices environment (React, C#, and Python) from a developer's commit to a live production state on **Azure Kubernetes Service (AKS)** took far too long.
+
+The primary bottleneck was "YAML engineering"—manual configuration drift caused by applying static Kubernetes manifests via `kubectl`.
+
+### Standardizing with Helm and GitOps
+
+To abstract the complexity away from application developers, I re-architected the deployment flow using **Helm charts**. By templating the Kubernetes manifests, developers only needed to update a `values.yaml` file to dynamically inject environment variables, tweak resource limits, or scale replica counts. 
+
+![Architecture Diagram](/Helm.png)
+
+### Intelligent Autoscaling & Caching
+
+Because market data loads are highly volatile (specifically handling massive Apache Arrow Flight workloads), static provisioning was too slow. We implemented the Horizontal Pod Autoscaler (HPA), but rather than relying on standard CPU/Memory metrics, we configured the HPA to scale based on custom queue-length and throughput metrics exposed via Prometheus adapters.
+
+#### To speed up the CI phase, we overhauled the Docker build process in Azure Pipelines, implementing aggressive layer caching and cache-busting only when requirements.txt or package.json changed. These combined infrastructure upgrades removed the friction from our pipelines, ultimately reducing the overall commit-to-production lead time by 80%.
