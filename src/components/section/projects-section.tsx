@@ -23,10 +23,10 @@ export default function ProjectsSection() {
         </ScrollReveal>
       </div>
       
-      {/* Updated to a single column (grid-cols-1) so horizontal cards have room to stretch */}
-      <div className="grid grid-cols-1 gap-8 w-full">
+      {/* 2-Column Grid with tighter gaps */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-[800px] mx-auto w-full">
         {DATA.projects.map((project, id) => (
-          <ScrollReveal key={project.title} delay={0.1} yOffset={40} className="w-full">
+          <ScrollReveal key={project.title} delay={0.1 + (id % 2) * 0.15} yOffset={30} className="h-full">
             <ProjectCard
               href={project.href}
               title={project.title}
